@@ -6,24 +6,26 @@ import (
 	"io"
 	"log"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 type book struct {
-	Isbn       string   "csv:'isbn13'"
-	Title      string   "csv:'title'"
-	Last_Name  string   "csv:'authorLN'"
-	First_Name string   "csv:'authorFN'"
-	Subjects   []string "csv:'subjects'"
-	Numsub     int      "csv:'numb of subjects'"
-	Format     string   "csv:'format'"
-	Price      string   "csv:'price'"
-	Publisher  string   "csv:'publisher'"
-	Pubdate    string   "csv:'pubdate'"
+	Isbn       string   `csv:"isbn13"`
+	Title      string   `csv:"title"`
+	Last_Name  string   `csv:"authorLN"`
+	First_Name string   `csv:"authorFN"`
+	Subjects   []string `csv:"subjects"`
+	Numsub     int      `csv:"numb of subjects"`
+	Format     string   `csv:"format"`
+	Price      string   `csv:"price"`
+	Publisher  string   `csv:"publisher"`
+	Pubdate    string   `csv:"pubdate"`
 }
 
-func readme() {
+func readme() []book {
+	// var books = func() {
 	// open file
 	f, err := os.Open("books_go.csv")
 	if err != nil {
@@ -46,13 +48,13 @@ func readme() {
 			log.Fatal(err)
 		}
 		// do something with read line
-		fmt.Printf("%+v\n", rec)
+		// fmt.Printf("%+v\n", rec)
 
 		b := rowToBook(rec)
 		books = append(books, b)
 
 	}
-
+	return books[1:]
 }
 
 func rowToBook(row []string) book {
@@ -74,9 +76,32 @@ func rowToBook(row []string) book {
 	return book
 }
 
-type Bk interface {
-	getAuthorLName() string
-	getPrice() float64
+type sortedBooksLN []book
+
+func (a sortedBooksLN) Len() int {
+	return len(a)
+}
+
+func (a sortedBooksLN) Less(i, j int) bool {
+	return a[i].Last_Name < a[j].Last_Name
+}
+
+func (a sortedBooksLN) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+
+type sortedBooksPrice []book
+
+func (a sortedBooksPrice) Len() int {
+	return len(a)
+}
+
+func (a sortedBooksPrice) Less(i, j int) bool {
+	return a[i].Price < a[j].Price
+}
+
+func (a sortedBooksPrice) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
 }
 
 //"getter” function that returns the last name of the book's author
@@ -90,7 +115,7 @@ func getPrice(b book) float64 {
 	return v
 }
 
-func GetMaxCol[T ~string | ~float64](f func(Book) T, books []Bk) T {
+func GetMaxCol[T ~string | ~float64](f func(book) T, books []book) T {
 	max := f(books[0])
 	for _, b := range books {
 		if f(b) > max {
@@ -101,10 +126,19 @@ func GetMaxCol[T ~string | ~float64](f func(Book) T, books []Bk) T {
 }
 
 func main() {
-	bk := readme()
-	la := GetMaxCol(getAuthorLName, bk)
-	hp := GetMaxCol(getPrice, bk)
+	books := readme()
+	sort.Sort(sortedBooksLN(books))
+	for _, b := range books {
+		fmt.Printf("%+v\n", b.Last_Name)
+	}
+	sort.Sort(sortedBooksPrice(books))
+	for _, b := range books {
+		fmt.Printf("%+v\n", b.Price)
+	}
+
+	fmt.Printf("%+v\n", books)
+	la := GetMaxCol(getAuthorLName, books)
+	hp := GetMaxCol(getPrice, books)
 	fmt.Printf("Last author alphabetically: %v\n", la)
 	fmt.Printf("Highest priced book: $%v \n", hp)
-
 }
