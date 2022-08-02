@@ -29,6 +29,15 @@ func main() {
 		return
 	}
 	var response string
+	var channels = make(map[string]string)
+	// channels["#general"] = "#general"
+
+	users := make(map[string]string)
+	// users["user1"] = "user1"
+
+	msgs := make(map[string]string)
+	// msgs["#general"] = "#general"
+
 Loop:
 	for {
 		netData, err := bufio.NewReader(c).ReadString('\n')
@@ -37,81 +46,92 @@ Loop:
 			return
 		}
 
-		channels := make(map[string]string)
 		input := strings.Split(netData, " ")
-
-		command := string(input[0])
-		fmt.Println("command " + command)
-
-		user := input[1]
-		fmt.Println("user " + user)
-
-		channel := input[2]
-		fmt.Println("channel " + channel)
+		command := input[0]
 
 		switch command {
-		case "Reg":
-			if user[0] != '@' {
-				// fmt.Println("Invalid user name")
-				response = "Invalid user name\n"
-				fmt.Print("-> ", string(response))
-				fmt.Println()
-				c.Write([]byte(response))
-				continue Loop
+		case "REG":
+			if len(input) == 1 {
+				response = "REGISTER: Please provide a username"
+			} else {
+				username := input[1]
+				if username[0] != '@' {
+					response = "REGISTER: Username must start with '@'"
+				} else {
+					if _, ok := users[username]; ok {
+						response = "REGISTER: Username already exists"
+					} else {
+						users[username] = username
+						response = "REGISTER: Successfully registered"
+					}
+				}
 			}
-			if channel[0] != '#' {
-				// fmt.Println("Invalid channel name")
-				response = "Invalid channel name\n"
-				fmt.Print("-> ", string(response))
-				fmt.Println()
-				c.Write([]byte(response))
-				continue Loop
+		case "LEAVE":
+			if len(input) == 1 {
+				response = "LEAVE: Please provide a channel"
+			} else {
+				channel := input[1]
+				if _, ok := channels[channel]; ok {
+					delete(channels, channel)
+					response = "LEAVE: Successfully left"
+				} else {
+					response = "LEAVE: Channel does not exist"
+				}
 			}
-			channels[user] = channel
-			// fmt.Println("User " + user + " registered to channel " + channel)
-			response = "User " + user + " registered to channel " + channel + "\n"
-			fmt.Print("-> ", string(response))
-			fmt.Println()
-			c.Write([]byte(response))
-			continue Loop
-		case "Msg":
-			if _, ok := channels[user]; !ok {
-				// fmt.Println("User " + user + " is not registered")
-				response = "User " + user + " is not registered\n"
-				fmt.Print("-> ", string(response))
-				fmt.Println()
-				c.Write([]byte(response))
-				continue Loop
+		case "MSG":
+			if len(input) == 1 {
+				response = "MSG: Please provide a message"
+			} else {
+				message := input[1]
+				msgs[message] = message
+				response = "MSG: " + message
 			}
-			response = "User " + user + " sent message to channel " + channels[user] + "\n"
-			// fmt.Println("User " + user + " sent message to channel " + channels[user]+"\n")
-			fmt.Print("-> ", string(response))
-			fmt.Println()
-			c.Write([]byte(response))
-			continue Loop
-
-		case "Quit":
-			if _, ok := channels[user]; !ok {
-				// fmt.Println("User " + user + " is not registered")
-				response = "User " + user + " is not registered\n"
-				fmt.Print("-> ", string(response))
-				fmt.Println()
-				c.Write([]byte(response))
-				continue Loop
+		case "LIST":
+			// if input[1] == "LIST" {
+			if len(channels) == 0 {
+				response = "CHNS: There are no channels"
+			} else {
+				response = "CHNS: "
+				for _, value := range channels {
+					response += value //+ " "
+				}
 			}
-			// fmt.Println("User " + user + " quit from channel " + channels[user] + "\n")
-			response = "User " + user + " quit from channel " + channels[user] + "\n"
-			fmt.Print("-> ", string(response))
-			fmt.Println()
-			c.Write([]byte(response))
-			delete(channels, user)
-			continue Loop
+			// }
+		case "JOIN":
+			if len(input) == 1 {
+				response = "JOIN: Please provide a channel"
+			} else {
+				channel := input[1]
+				if channel[0] != '#' {
+					response = "JOIN: Channel must start with '#'"
+				} else {
+					if _, ok := channels[channel]; ok {
+						response = "JOIN: Channel already exists"
+					} else {
+						channels[channel] = channel
+						response = "JOIN: Successfully joined"
+					}
+				}
+			}
 		case "STOP":
-			fmt.Println("TCP server exiting...")
-			return
+			response = "CHNS: "
+			for _, value := range channels {
+				response += value + " "
+			}
+			response += "\nMSGS: "
+			for _, value := range msgs {
+				response += value + " "
+			}
+			response += "\nUSERS: "
+			for _, value := range users {
+				response += value + " "
+			}
+			break Loop
 		default:
-			fmt.Println("Invalid command")
-			return
+			response = "UNKNOWN: Command not recognized"
 		}
+		c.Write([]byte(response + "\n"))
+
 	}
+
 }
