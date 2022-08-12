@@ -8,6 +8,8 @@
 //         On my desktop it took arund 2.27 seconds to complete.
 // Reference on echarts: https://github.com/go-echarts/go-echarts
 
+// took 12m40.476652834s to complete
+
 package main
 
 import (
@@ -15,14 +17,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
+	"github.com/hsblhsn/queues"
 	_ "github.com/lib/pq"
 )
 
 func main() {
+	fmt.Println(runtime.NumCPU())
+	// runtime.GOMAXPROCS(5)
+
 	// Create DB pool
 	netID := "eas141" //  in my case it would be: netID := "eas141"
 	DB_DSN := fmt.Sprintf("postgres://%s:@129.105.248.26:5432/chicago_crimes?sslmode=disable", netID)
@@ -59,38 +66,45 @@ func main() {
 	// fmt.Println(blocks)
 	start := time.Now()
 
+	q := queues.New(67)
+
 	for _, block := range blocks {
-		print(block)
-		qstring := "SELECT primary_type, count(*) FROM crimes WHERE block='%s' AND primary_type in (%s,%s,%s,%s,%s,%s,%s) GROUP BY primary_type"
-		userSql := fmt.Sprintf(qstring, block, "'THEFT'", "'ASSAULT'", "'ROBBERY'", "'KIDNAPPING'", "'CRIM SEXUAL ASSAULT'", "'BATTERY'", "'MURDER'")
-		fmt.Println(userSql)
+		q.Add(1)
+		go func(block string) {
+			// print(block)
+			defer q.Done()
+			qstring := "SELECT primary_type, count(*) FROM crimes WHERE block='%s' AND primary_type in (%s,%s,%s,%s,%s,%s,%s) GROUP BY primary_type"
+			userSql := fmt.Sprintf(qstring, block, "'THEFT'", "'ASSAULT'", "'ROBBERY'", "'KIDNAPPING'", "'CRIM SEXUAL ASSAULT'", "'BATTERY'", "'MURDER'")
+			fmt.Println(userSql)
 
-		rows, err := db.Query(userSql)
-		if err != nil {
-			log.Fatal("Failed to execute query: ", err)
-		}
-
-		defer rows.Close()
-
-		var ptypes []string
-		var counts []int
-		for rows.Next() {
-			var ptype string
-			var count int
-			err = rows.Scan(&ptype, &count)
-
-			// Shorten label so it won't cause issues in the plot
-			if ptype == "CRIM SEXUAL ASSAULT" {
-				ptype = "SEX. ASSAULT"
+			rows, err := db.Query(userSql)
+			if err != nil {
+				log.Fatal("Failed to execute query: ", err)
 			}
 
-			ptypes = append(ptypes, ptype)
-			counts = append(counts, count)
-		}
+			defer rows.Close()
 
-		plot(string(block), ptypes, counts)
+			var ptypes []string
+			var counts []int
+			for rows.Next() {
+				var ptype string
+				var count int
+				err = rows.Scan(&ptype, &count)
+
+				// Shorten label so it won't cause issues in the plot
+				if ptype == "CRIM SEXUAL ASSAULT" {
+					ptype = "SEX. ASSAULT"
+				}
+
+				ptypes = append(ptypes, ptype)
+				counts = append(counts, count)
+			}
+
+			plot(string(block), ptypes, counts)
+		}(block)
 
 	}
+	q.Wait()
 	duration := time.Since(start)
 	fmt.Println(duration)
 }
